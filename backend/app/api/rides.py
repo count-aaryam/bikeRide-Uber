@@ -13,6 +13,21 @@ from app.services.ride_service import (
 from app.dependencies.auth import get_current_user
 from typing import List
 
+from app.services.ride_service import (
+    create_ride,
+    get_available_rides,
+    accept_ride,
+    driver_arriving,
+    get_ride_otp,
+    start_ride,
+    complete_ride,
+    cancel_ride,
+    get_rider_history,      # add
+    get_driver_history      # add
+)
+from app.schemas.ride import RideCreate, RideOut, RideOTPVerify, RideHistoryOut  # add RideHistoryOut
+
+
 router = APIRouter(prefix="/api/v1")
 
 @router.post("/rides")
@@ -106,3 +121,16 @@ def cancel_ride_endpoint(ride_id: int, current_user=Depends(get_current_user)):
         "ride_id": ride.id,
         "status": ride.status
     }
+
+@router.get("/rides/my-rides", response_model=List[RideHistoryOut])
+def rider_history(current_user=Depends(get_current_user)):
+    if current_user["role"] != "rider":
+        raise HTTPException(status_code=403, detail="Only riders can view ride history")
+    return get_rider_history(rider_id=current_user["user_id"])
+
+
+@router.get("/rides/my-trips", response_model=List[RideHistoryOut])
+def driver_history(current_user=Depends(get_current_user)):
+    if current_user["role"] != "driver":
+        raise HTTPException(status_code=403, detail="Only drivers can view trip history")
+    return get_driver_history(driver_id=current_user["user_id"])

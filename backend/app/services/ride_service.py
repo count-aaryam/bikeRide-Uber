@@ -169,3 +169,23 @@ def cancel_ride(ride_id: int, user_id: int, role: str):
         return ride
     finally:
         db.close()
+
+def get_rider_history(rider_id: int):
+    db = SessionLocal()
+    try:
+        rides = db.query(Ride).filter(
+            Ride.rider_id == rider_id
+        ).order_by(Ride.id.desc()).all()
+        return rides
+    finally:
+        db.close()
+
+def get_driver_history(driver_id: int):
+    db = SessionLocal()
+    try:
+        rides = db.query(Ride).filter(
+            Ride.driver_id == driver_id
+        ).order_by(Ride.id.desc()).all()
+        return rides
+    finally:
+        db.close()
