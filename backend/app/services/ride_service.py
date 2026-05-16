@@ -1,5 +1,8 @@
 from app.db.session import SessionLocal
 from app.models.ride import Ride
+from app.models.user import User
+from app.websocket.connection_manager import manager
+from app.websocket.events import RideEvents
 from fastapi import HTTPException
 import random
 
@@ -28,6 +31,17 @@ def get_available_rides():
     finally:
         db.close()
 
+def get_online_driver_ids():
+    db = SessionLocal()
+    try:
+        drivers = db.query(User).filter(
+            User.role == "driver",
+            User.is_online == True
+        ).all()
+        return [d.id for d in drivers]
+    finally:
+        db.close()
+
 def accept_ride(ride_id: int, driver_id: int):
     db = SessionLocal()
     try:
@@ -48,7 +62,7 @@ def accept_ride(ride_id: int, driver_id: int):
     finally:
         db.close()
 
-def driver_arriving(ride_id: int, driver_id: int):
+def mark_driver_arriving(ride_id: int, driver_id: int):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).first()
@@ -60,7 +74,7 @@ def driver_arriving(ride_id: int, driver_id: int):
         if ride.status != "accepted":
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot mark arriving from status '{ride.status}'. Must be 'accepted'"
+                detail=f"Cannot mark arriving from status '{ride.status}'"
             )
 
         ride.status = "driver_arriving"
@@ -80,10 +94,7 @@ def get_ride_otp(ride_id: int, rider_id: int):
         if ride.rider_id != rider_id:
             raise HTTPException(status_code=403, detail="This is not your ride")
         if ride.status not in ["accepted", "driver_arriving"]:
-            raise HTTPException(
-                status_code=400,
-                detail="OTP only available once ride is accepted"
-            )
+            raise HTTPException(status_code=400, detail="OTP only available once ride is accepted")
 
         return ride.otp
     finally:
@@ -101,7 +112,7 @@ def start_ride(ride_id: int, driver_id: int, otp: str):
         if ride.status != "driver_arriving":
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot start ride from status '{ride.status}'. Driver must be arriving first"
+                detail=f"Cannot start ride from status '{ride.status}'"
             )
         if ride.otp != otp:
             raise HTTPException(status_code=400, detail="Invalid OTP")
@@ -126,7 +137,7 @@ def complete_ride(ride_id: int, driver_id: int):
         if ride.status != "in_progress":
             raise HTTPException(
                 status_code=400,
-                detail=f"Cannot complete ride from status '{ride.status}'. Must be 'in_progress'"
+                detail=f"Cannot complete ride from status '{ride.status}'"
             )
 
         ride.status = "completed"
@@ -173,19 +184,17 @@ def cancel_ride(ride_id: int, user_id: int, role: str):
 def get_rider_history(rider_id: int):
     db = SessionLocal()
     try:
-        rides = db.query(Ride).filter(
+        return db.query(Ride).filter(
             Ride.rider_id == rider_id
         ).order_by(Ride.id.desc()).all()
-        return rides
     finally:
         db.close()
 
 def get_driver_history(driver_id: int):
     db = SessionLocal()
     try:
-        rides = db.query(Ride).filter(
+        return db.query(Ride).filter(
             Ride.driver_id == driver_id
         ).order_by(Ride.id.desc()).all()
-        return rides
     finally:
         db.close()
