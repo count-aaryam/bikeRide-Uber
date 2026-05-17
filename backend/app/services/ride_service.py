@@ -19,11 +19,18 @@ async def create_ride(db: Session, pickup, dropoff, rider_id):
     await cache_ride_state(ride.id, "requested", rider_id)
     return ride
 
-def get_available_rides(db: Session):
-    return db.query(Ride).filter(
+def get_available_rides(db: Session, offset: int = 0, limit: int = 10):
+    total = db.query(Ride).filter(
         Ride.status == "requested",
         Ride.driver_id == None
-    ).all()
+    ).count()
+
+    rides = db.query(Ride).filter(
+        Ride.status == "requested",
+        Ride.driver_id == None
+    ).order_by(Ride.id.desc()).offset(offset).limit(limit).all()
+
+    return rides, total
 
 def get_online_driver_ids_from_db(db: Session):
     drivers = db.query(User).filter(
@@ -155,12 +162,24 @@ async def cancel_ride(db: Session, ride_id: int, user_id: int, role: str):
     await delete_ride_state(ride.id)
     return ride
 
-def get_rider_history(db: Session, rider_id: int):
-    return db.query(Ride).filter(
+def get_rider_history(db: Session, rider_id: int, offset: int = 0, limit: int = 10):
+    total = db.query(Ride).filter(
         Ride.rider_id == rider_id
-    ).order_by(Ride.id.desc()).all()
+    ).count()
 
-def get_driver_history(db: Session, driver_id: int):
-    return db.query(Ride).filter(
+    rides = db.query(Ride).filter(
+        Ride.rider_id == rider_id
+    ).order_by(Ride.id.desc()).offset(offset).limit(limit).all()
+
+    return rides, total
+
+def get_driver_history(db: Session, driver_id: int, offset: int = 0, limit: int = 10):
+    total = db.query(Ride).filter(
         Ride.driver_id == driver_id
-    ).order_by(Ride.id.desc()).all()
+    ).count()
+
+    rides = db.query(Ride).filter(
+        Ride.driver_id == driver_id
+    ).order_by(Ride.id.desc()).offset(offset).limit(limit).all()
+
+    return rides, total

@@ -11,25 +11,31 @@ from app.websocket.events import RideEvents
 from app.db.session import get_db
 from app.utils.response import success_response
 from typing import List
+from app.utils.pagination import get_pagination, paginate_response, PaginationParams
 
 router = APIRouter(prefix="/api/v1/admin")
 
 @router.get("/users")
 def list_users(
     current_admin=Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
-    users = get_all_users(db)
+    users, total = get_all_users(db, offset=pagination.offset, limit=pagination.limit)
     return success_response(
-        data=[{
-            "id": u.id,
-            "name": u.name,
-            "email": u.email,
-            "phone": u.phone,
-            "role": u.role,
-            "is_online": u.is_online,
-            "created_at": str(u.created_at) if u.created_at else None
-        } for u in users],
+        data=paginate_response(
+            data=[{
+                "id": u.id,
+                "name": u.name,
+                "email": u.email,
+                "phone": u.phone,
+                "role": u.role,
+                "is_online": u.is_online,
+                "created_at": str(u.created_at) if u.created_at else None
+            } for u in users],
+            total=total,
+            pagination=pagination
+        ),
         message="Users fetched"
     )
 
@@ -37,42 +43,53 @@ def list_users(
 @router.get("/rides")
 def list_rides(
     current_admin=Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
-    rides = get_all_rides(db)
+    rides, total = get_all_rides(db, offset=pagination.offset, limit=pagination.limit)
     return success_response(
-        data=[{
-            "id": r.id,
-            "pickup": r.pickup,
-            "dropoff": r.dropoff,
-            "status": r.status,
-            "rider_id": r.rider_id,
-            "driver_id": r.driver_id,
-            "fare": r.fare,
-            "distance_km": r.distance_km,
-            "created_at": str(r.created_at) if r.created_at else None
-        } for r in rides],
+        data=paginate_response(
+            data=[{
+                "id": r.id,
+                "pickup": r.pickup,
+                "dropoff": r.dropoff,
+                "status": r.status,
+                "rider_id": r.rider_id,
+                "driver_id": r.driver_id,
+                "fare": r.fare,
+                "distance_km": r.distance_km,
+                "created_at": str(r.created_at) if r.created_at else None
+            } for r in rides],
+            total=total,
+            pagination=pagination
+        ),
         message="All rides fetched"
     )
+
 
 @router.get("/rides/active")
 def list_active_rides(
     current_admin=Depends(get_current_admin),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
-    rides = get_active_rides(db)
+    rides, total = get_active_rides(db, offset=pagination.offset, limit=pagination.limit)
     return success_response(
-        data=[{
-            "id": r.id,
-            "pickup": r.pickup,
-            "dropoff": r.dropoff,
-            "status": r.status,
-            "rider_id": r.rider_id,
-            "driver_id": r.driver_id,
-            "fare": r.fare,
-            "distance_km": r.distance_km,
-            "created_at": str(r.created_at) if r.created_at else None
-        } for r in rides],
+        data=paginate_response(
+            data=[{
+                "id": r.id,
+                "pickup": r.pickup,
+                "dropoff": r.dropoff,
+                "status": r.status,
+                "rider_id": r.rider_id,
+                "driver_id": r.driver_id,
+                "fare": r.fare,
+                "distance_km": r.distance_km,
+                "created_at": str(r.created_at) if r.created_at else None
+            } for r in rides],
+            total=total,
+            pagination=pagination
+        ),
         message="Active rides fetched"
     )
 

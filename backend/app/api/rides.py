@@ -15,6 +15,8 @@ from app.db.session import get_db
 from app.utils.response import success_response
 from app.services.matching_service import get_nearby_drivers
 from typing import List
+from app.utils.pagination import get_pagination, paginate_response, PaginationParams
+
 
 router = APIRouter(prefix="/api/v1")
 
@@ -58,21 +60,29 @@ async def request_ride(
 @router.get("/rides/feed")
 def ride_feed(
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
     if current_user["role"] != "driver":
         raise HTTPException(status_code=403, detail="Drivers only")
-    rides = get_available_rides(db)
+
+    rides, total = get_available_rides(db, offset=pagination.offset, limit=pagination.limit)
+
     return success_response(
-        data=[{
-            "id": r.id,
-            "pickup": r.pickup,
-            "dropoff": r.dropoff,
-            "status": r.status,
-            "rider_id": r.rider_id
-        } for r in rides],
+        data=paginate_response(
+            data=[{
+                "id": r.id,
+                "pickup": r.pickup,
+                "dropoff": r.dropoff,
+                "status": r.status,
+                "rider_id": r.rider_id
+            } for r in rides],
+            total=total,
+            pagination=pagination
+        ),
         message="Available rides fetched"
     )
+
 
 
 @router.patch("/rides/{ride_id}/accept")
@@ -210,23 +220,35 @@ async def cancel_ride_endpoint(
 @router.get("/rides/my-rides")
 def rider_history(
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
     if current_user["role"] != "rider":
         raise HTTPException(status_code=403, detail="Only riders can view ride history")
-    rides = get_rider_history(db, rider_id=current_user["user_id"])
+
+    rides, total = get_rider_history(
+        db,
+        rider_id=current_user["user_id"],
+        offset=pagination.offset,
+        limit=pagination.limit
+    )
+
     return success_response(
-        data=[{
-            "id": r.id,
-            "pickup": r.pickup,
-            "dropoff": r.dropoff,
-            "status": r.status,
-            "rider_id": r.rider_id,
-            "driver_id": r.driver_id,
-            "fare": r.fare,
-            "distance_km": r.distance_km,
-            "created_at": str(r.created_at) if r.created_at else None
-        } for r in rides],
+        data=paginate_response(
+            data=[{
+                "id": r.id,
+                "pickup": r.pickup,
+                "dropoff": r.dropoff,
+                "status": r.status,
+                "rider_id": r.rider_id,
+                "driver_id": r.driver_id,
+                "fare": r.fare,
+                "distance_km": r.distance_km,
+                "created_at": str(r.created_at) if r.created_at else None
+            } for r in rides],
+            total=total,
+            pagination=pagination
+        ),
         message="Ride history fetched"
     )
 
@@ -234,22 +256,34 @@ def rider_history(
 @router.get("/rides/my-trips")
 def driver_history(
     current_user=Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    pagination: PaginationParams = Depends(get_pagination)
 ):
     if current_user["role"] != "driver":
         raise HTTPException(status_code=403, detail="Only drivers can view trip history")
-    rides = get_driver_history(db, driver_id=current_user["user_id"])
+
+    rides, total = get_driver_history(
+        db,
+        driver_id=current_user["user_id"],
+        offset=pagination.offset,
+        limit=pagination.limit
+    )
+
     return success_response(
-        data=[{
-            "id": r.id,
-            "pickup": r.pickup,
-            "dropoff": r.dropoff,
-            "status": r.status,
-            "rider_id": r.rider_id,
-            "driver_id": r.driver_id,
-            "fare": r.fare,
-            "distance_km": r.distance_km,
-            "created_at": str(r.created_at) if r.created_at else None
-        } for r in rides],
+        data=paginate_response(
+            data=[{
+                "id": r.id,
+                "pickup": r.pickup,
+                "dropoff": r.dropoff,
+                "status": r.status,
+                "rider_id": r.rider_id,
+                "driver_id": r.driver_id,
+                "fare": r.fare,
+                "distance_km": r.distance_km,
+                "created_at": str(r.created_at) if r.created_at else None
+            } for r in rides],
+            total=total,
+            pagination=pagination
+        ),
         message="Trip history fetched"
     )

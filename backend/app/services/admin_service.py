@@ -3,16 +3,29 @@ from app.models.user import User
 from app.models.ride import Ride
 from fastapi import HTTPException
 
-def get_all_users(db: Session):
-    return db.query(User).order_by(User.id.desc()).all()
+def get_all_users(db: Session, offset: int = 0, limit: int = 10):
+    total = db.query(User).count()
+    users = db.query(User).order_by(
+        User.id.desc()
+    ).offset(offset).limit(limit).all()
+    return users, total
 
-def get_all_rides(db: Session):
-    return db.query(Ride).order_by(Ride.id.desc()).all()
+def get_all_rides(db: Session, offset: int = 0, limit: int = 10):
+    total = db.query(Ride).count()
+    rides = db.query(Ride).order_by(
+        Ride.id.desc()
+    ).offset(offset).limit(limit).all()
+    return rides, total
 
-def get_active_rides(db: Session):
-    return db.query(Ride).filter(
-        Ride.status.in_(["requested", "accepted", "driver_arriving", "in_progress"])
-    ).order_by(Ride.id.desc()).all()
+def get_active_rides(db: Session, offset: int = 0, limit: int = 10):
+    active_statuses = ["requested", "accepted", "driver_arriving", "in_progress"]
+    total = db.query(Ride).filter(
+        Ride.status.in_(active_statuses)
+    ).count()
+    rides = db.query(Ride).filter(
+        Ride.status.in_(active_statuses)
+    ).order_by(Ride.id.desc()).offset(offset).limit(limit).all()
+    return rides, total
 
 def force_cancel_ride(db: Session, ride_id: int):
     ride = db.query(Ride).filter(Ride.id == ride_id).first()
