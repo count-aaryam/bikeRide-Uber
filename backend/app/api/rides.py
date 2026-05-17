@@ -11,6 +11,9 @@ from app.websocket.events import RideEvents
 from app.dependencies.auth import get_current_user
 from app.core.limiter import limiter
 from typing import List
+from app.services.matching_service import get_nearby_drivers
+
+
 
 router = APIRouter(prefix="/api/v1")
 
@@ -26,13 +29,24 @@ async def request_ride(request: Request, ride: RideCreate, current_user=Depends(
         rider_id=current_user["user_id"]
     )
 
-    online_driver_ids = get_online_driver_ids_from_db()
+    # Use nearby filtering if coordinates provided
+    # Otherwise fall back to all online drivers
+    if ride.pickup_lat and ride.pickup_lng:
+        nearby = await get_nearby_drivers(
+            pickup_lat=ride.pickup_lat,
+            pickup_lng=ride.pickup_lng,
+            radius_km=5.0
+        )
+        target_driver_ids = [d["driver_id"] for d in nearby]
+    else:
+        target_driver_ids = get_online_driver_ids_from_db()
+
     await manager.broadcast_to_all_drivers({
         "event": RideEvents.NEW_RIDE_REQUESTED,
         "ride_id": new_ride.id,
         "pickup": new_ride.pickup,
         "dropoff": new_ride.dropoff
-    }, online_driver_ids)
+    }, target_driver_ids)
 
     return {"message": "Ride requested", "ride_id": new_ride.id}
 

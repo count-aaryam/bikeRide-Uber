@@ -6,6 +6,12 @@ from app.api import users, auth, rides, driver, admin
 from app.websocket import router as ws_router
 from app.core.limiter import limiter
 from app.core.redis import connect_redis, disconnect_redis
+from app.utils.background import (
+    cleanup_stale_drivers_task,
+    cleanup_empty_rooms_task,
+    driver_heartbeat_check_task
+)
+import asyncio
 
 app = FastAPI()
 
@@ -23,6 +29,13 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     await connect_redis()
+
+    # Start background tasks
+    asyncio.create_task(cleanup_stale_drivers_task())
+    asyncio.create_task(cleanup_empty_rooms_task())
+    asyncio.create_task(driver_heartbeat_check_task())
+
+    print("Background tasks started")
 
 @app.on_event("shutdown")
 async def shutdown():

@@ -7,6 +7,8 @@ from app.services.user_service import (
 from app.schemas.user import UserOut, LocationUpdate
 from app.dependencies.auth import get_current_user
 from typing import List
+from app.services.matching_service import get_nearby_drivers
+
 
 router = APIRouter(prefix="/api/v1/driver")
 
@@ -22,14 +24,7 @@ def toggle_status(current_user=Depends(get_current_user)):
     }
 
 @router.get("/available", response_model=List[UserOut])
-@router.get("/available", response_model=List[UserOut])
 def available_drivers(current_user=Depends(get_current_user)):
-    # Only admin can see the full list of available drivers
-    if current_user["role"] != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied"
-        )
     drivers = get_available_drivers()
     return drivers
 
@@ -47,4 +42,30 @@ def update_location(location: LocationUpdate, current_user=Depends(get_current_u
         "message": "Location updated",
         "latitude": driver.latitude,
         "longitude": driver.longitude
+    }
+
+@router.get("/nearby")
+async def nearby_drivers(
+    lat: float,
+    lng: float,
+    radius: float = 5.0,
+    current_user=Depends(get_current_user)
+):
+    """
+    Rider calls this to see nearby available drivers
+    before or after requesting a ride.
+    """
+    if current_user["role"] != "rider":
+        raise HTTPException(status_code=403, detail="Only riders can search for nearby drivers")
+
+    drivers = await get_nearby_drivers(
+        pickup_lat=lat,
+        pickup_lng=lng,
+        radius_km=radius
+    )
+
+    return {
+        "nearby_drivers": drivers,
+        "count": len(drivers),
+        "radius_km": radius
     }
