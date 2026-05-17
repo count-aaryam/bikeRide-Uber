@@ -3,6 +3,7 @@ from app.schemas.user import UserCreate
 from app.services.user_service import create_user
 from app.dependencies.auth import get_current_user
 from app.core.limiter import limiter
+from app.utils.response import success_response
 
 router = APIRouter(prefix="/api/v1")
 
@@ -16,20 +17,14 @@ def signup(request: Request, user: UserCreate):
         role=user.role,
         phone=user.phone
     )
-    return {
-        "message": "User created",
-        "id": created_user.id
-    }
+    return success_response(
+        data={"id": created_user.id},
+        message="User created successfully"
+    )
 
 @router.get("/profile")
-def profile(current_user=Depends(get_current_user)):
-    return {
-        "message": "Protected route accessed",
-        "user": current_user
-    }
-
-@router.get("/driver-only")
-def driver_route(current_user=Depends(get_current_user)):
-    if current_user["role"] != "driver":
-        return {"error": "Drivers only"}
-    return {"message": "Welcome driver"}
+async def profile(current_user=Depends(get_current_user)):
+    return success_response(
+        data={"user": current_user},
+        message="Profile fetched"
+    )
