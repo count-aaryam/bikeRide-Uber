@@ -10,6 +10,9 @@ from app.websocket.connection_manager import manager
 from app.websocket.events import RideEvents
 from app.dependencies.auth import get_current_user
 from typing import List
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.core.limiter import limiter
+
 
 router = APIRouter(prefix="/api/v1")
 
