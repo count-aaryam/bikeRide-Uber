@@ -55,14 +55,24 @@ async def request_ride(
     )
 
 
-@router.get("/rides/feed", response_model=List[RideOut])
+@router.get("/rides/feed")
 def ride_feed(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     if current_user["role"] != "driver":
         raise HTTPException(status_code=403, detail="Drivers only")
-    return get_available_rides(db)
+    rides = get_available_rides(db)
+    return success_response(
+        data=[{
+            "id": r.id,
+            "pickup": r.pickup,
+            "dropoff": r.dropoff,
+            "status": r.status,
+            "rider_id": r.rider_id
+        } for r in rides],
+        message="Available rides fetched"
+    )
 
 
 @router.patch("/rides/{ride_id}/accept")
@@ -197,21 +207,49 @@ async def cancel_ride_endpoint(
     )
 
 
-@router.get("/rides/my-rides", response_model=List[RideHistoryOut])
+@router.get("/rides/my-rides")
 def rider_history(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     if current_user["role"] != "rider":
         raise HTTPException(status_code=403, detail="Only riders can view ride history")
-    return get_rider_history(db, rider_id=current_user["user_id"])
+    rides = get_rider_history(db, rider_id=current_user["user_id"])
+    return success_response(
+        data=[{
+            "id": r.id,
+            "pickup": r.pickup,
+            "dropoff": r.dropoff,
+            "status": r.status,
+            "rider_id": r.rider_id,
+            "driver_id": r.driver_id,
+            "fare": r.fare,
+            "distance_km": r.distance_km,
+            "created_at": str(r.created_at) if r.created_at else None
+        } for r in rides],
+        message="Ride history fetched"
+    )
 
 
-@router.get("/rides/my-trips", response_model=List[RideHistoryOut])
+@router.get("/rides/my-trips")
 def driver_history(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     if current_user["role"] != "driver":
         raise HTTPException(status_code=403, detail="Only drivers can view trip history")
-    return get_driver_history(db, driver_id=current_user["user_id"])
+    rides = get_driver_history(db, driver_id=current_user["user_id"])
+    return success_response(
+        data=[{
+            "id": r.id,
+            "pickup": r.pickup,
+            "dropoff": r.dropoff,
+            "status": r.status,
+            "rider_id": r.rider_id,
+            "driver_id": r.driver_id,
+            "fare": r.fare,
+            "distance_km": r.distance_km,
+            "created_at": str(r.created_at) if r.created_at else None
+        } for r in rides],
+        message="Trip history fetched"
+    )

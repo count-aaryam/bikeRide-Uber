@@ -29,12 +29,24 @@ async def toggle_status(
         message=f"You are now {'online' if driver.is_online else 'offline'}"
     )
 
-@router.get("/available", response_model=List[UserOut])
+@router.get("/available")
 def available_drivers(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    return get_available_drivers(db)
+    drivers = get_available_drivers(db)
+    return success_response(
+        data=[{
+            "id": d.id,
+            "name": d.name,
+            "email": d.email,
+            "role": d.role,
+            "is_online": d.is_online,
+            "latitude": d.latitude,
+            "longitude": d.longitude
+        } for d in drivers],
+        message="Available drivers fetched"
+    )
 
 @router.patch("/location")
 async def update_location(

@@ -14,26 +14,67 @@ from typing import List
 
 router = APIRouter(prefix="/api/v1/admin")
 
-@router.get("/users", response_model=List[UserAdminOut])
+@router.get("/users")
 def list_users(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return get_all_users(db)
+    users = get_all_users(db)
+    return success_response(
+        data=[{
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "phone": u.phone,
+            "role": u.role,
+            "is_online": u.is_online,
+            "created_at": str(u.created_at) if u.created_at else None
+        } for u in users],
+        message="Users fetched"
+    )
 
-@router.get("/rides", response_model=List[RideAdminOut])
+
+@router.get("/rides")
 def list_rides(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return get_all_rides(db)
+    rides = get_all_rides(db)
+    return success_response(
+        data=[{
+            "id": r.id,
+            "pickup": r.pickup,
+            "dropoff": r.dropoff,
+            "status": r.status,
+            "rider_id": r.rider_id,
+            "driver_id": r.driver_id,
+            "fare": r.fare,
+            "distance_km": r.distance_km,
+            "created_at": str(r.created_at) if r.created_at else None
+        } for r in rides],
+        message="All rides fetched"
+    )
 
-@router.get("/rides/active", response_model=List[RideAdminOut])
+@router.get("/rides/active")
 def list_active_rides(
     current_admin=Depends(get_current_admin),
     db: Session = Depends(get_db)
 ):
-    return get_active_rides(db)
+    rides = get_active_rides(db)
+    return success_response(
+        data=[{
+            "id": r.id,
+            "pickup": r.pickup,
+            "dropoff": r.dropoff,
+            "status": r.status,
+            "rider_id": r.rider_id,
+            "driver_id": r.driver_id,
+            "fare": r.fare,
+            "distance_km": r.distance_km,
+            "created_at": str(r.created_at) if r.created_at else None
+        } for r in rides],
+        message="Active rides fetched"
+    )
 
 @router.patch("/rides/{ride_id}/cancel")
 async def admin_cancel_ride(
