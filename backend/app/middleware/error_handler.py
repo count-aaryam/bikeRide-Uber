@@ -4,15 +4,18 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("bikeride.errors")
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Catches Pydantic validation errors and returns clean messages."""
     errors = []
     for error in exc.errors():
         field = " → ".join(str(e) for e in error["loc"] if e != "body")
         message = error["msg"].replace("Value error, ", "")
         errors.append(f"{field}: {message}" if field else message)
+
+    logger.warning(
+        f"Validation error on {request.method} {request.url.path}: {errors}"
+    )
 
     return JSONResponse(
         status_code=422,
@@ -24,8 +27,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 async def global_exception_handler(request: Request, exc: Exception):
-    """Catches any unhandled exception — prevents stack traces leaking to client."""
-    logger.error(f"Unhandled error on {request.method} {request.url}: {exc}")
+    logger.error(
+        f"Unhandled error on {request.method} {request.url.path}: {exc}",
+        exc_info=True  # includes full stack trace in logs
+    )
     return JSONResponse(
         status_code=500,
         content={
@@ -36,8 +41,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
-    """Catches DB errors cleanly."""
-    logger.error(f"Database error on {request.method} {request.url}: {exc}")
+    logger.error(
+        f"Database error on {request.method} {request.url.path}: {exc}",
+        exc_info=True
+    )
     return JSONResponse(
         status_code=500,
         content={
