@@ -1,6 +1,13 @@
 from app.db.session import SessionLocal
 from app.models.user import User
+from app.models.ride import Ride
 from app.core.security import hash_password
+from app.services.redis_service import (
+    set_driver_online,
+    set_driver_offline,
+    is_driver_online,
+    update_driver_location
+)
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException
 
@@ -24,7 +31,7 @@ def create_user(name, email, password, role, phone=None):
     finally:
         db.close()
 
-def toggle_driver_status(driver_id: int):
+async def toggle_driver_status(driver_id: int):
     db = SessionLocal()
     try:
         driver = db.query(User).filter(User.id == driver_id).first()
@@ -34,21 +41,27 @@ def toggle_driver_status(driver_id: int):
         if driver.role != "driver":
             raise HTTPException(status_code=403, detail="Only drivers can toggle status")
 
-        # Check if driver has an active ride
-        from app.models.ride import Ride
+        # Check for active ride before going offline
         active_ride = db.query(Ride).filter(
             Ride.driver_id == driver_id,
             Ride.status.in_(["accepted", "driver_arriving", "in_progress"])
         ).first()
 
-        if active_ride and driver.is_online:
+        currently_online = await is_driver_online(driver_id)
+
+        if active_ride and currently_online:
             raise HTTPException(
                 status_code=400,
                 detail="Cannot go offline while you have an active ride"
             )
 
-        # Toggle
-        driver.is_online = not driver.is_online
+        if currently_online:
+            await set_driver_offline(driver_id)
+            driver.is_online = False
+        else:
+            await set_driver_online(driver_id)
+            driver.is_online = True
+
         db.commit()
         db.refresh(driver)
         return driver
@@ -58,15 +71,14 @@ def toggle_driver_status(driver_id: int):
 def get_available_drivers():
     db = SessionLocal()
     try:
-        drivers = db.query(User).filter(
+        return db.query(User).filter(
             User.role == "driver",
             User.is_online == True
         ).all()
-        return drivers
     finally:
         db.close()
 
-def update_driver_location(driver_id: int, latitude: float, longitude: float):
+async def update_driver_location_service(driver_id: int, latitude: float, longitude: float):
     db = SessionLocal()
     try:
         driver = db.query(User).filter(User.id == driver_id).first()
@@ -76,6 +88,10 @@ def update_driver_location(driver_id: int, latitude: float, longitude: float):
         if driver.role != "driver":
             raise HTTPException(status_code=403, detail="Only drivers can update location")
 
+        # Fast write to Redis for real-time access
+        await update_driver_location(driver_id, latitude, longitude)
+
+        # Also persist to PostgreSQL for history
         driver.latitude = latitude
         driver.longitude = longitude
         db.commit()

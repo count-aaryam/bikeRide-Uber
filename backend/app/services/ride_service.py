@@ -3,19 +3,26 @@ from app.models.ride import Ride
 from app.models.user import User
 from app.websocket.connection_manager import manager
 from app.websocket.events import RideEvents
+from app.services.redis_service import (
+    cache_ride_state,
+    delete_ride_state,
+    get_online_driver_ids
+)
 from fastapi import HTTPException
 import random
 
 def generate_otp() -> str:
     return str(random.randint(1000, 9999))
 
-def create_ride(pickup, dropoff, rider_id):
+async def create_ride(pickup, dropoff, rider_id):
     db = SessionLocal()
     try:
         ride = Ride(pickup=pickup, dropoff=dropoff, rider_id=rider_id)
         db.add(ride)
         db.commit()
         db.refresh(ride)
+        # Cache initial ride state
+        await cache_ride_state(ride.id, "requested", rider_id)
         return ride
     finally:
         db.close()
@@ -23,15 +30,14 @@ def create_ride(pickup, dropoff, rider_id):
 def get_available_rides():
     db = SessionLocal()
     try:
-        rides = db.query(Ride).filter(
+        return db.query(Ride).filter(
             Ride.status == "requested",
             Ride.driver_id == None
         ).all()
-        return rides
     finally:
         db.close()
 
-def get_online_driver_ids():
+def get_online_driver_ids_from_db():
     db = SessionLocal()
     try:
         drivers = db.query(User).filter(
@@ -42,7 +48,7 @@ def get_online_driver_ids():
     finally:
         db.close()
 
-def accept_ride(ride_id: int, driver_id: int):
+async def accept_ride(ride_id: int, driver_id: int):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).with_for_update().first()
@@ -58,11 +64,14 @@ def accept_ride(ride_id: int, driver_id: int):
 
         db.commit()
         db.refresh(ride)
+
+        # Update Redis cache
+        await cache_ride_state(ride.id, "accepted", ride.rider_id, driver_id)
         return ride
     finally:
         db.close()
 
-def mark_driver_arriving(ride_id: int, driver_id: int):
+async def mark_driver_arriving(ride_id: int, driver_id: int):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).first()
@@ -80,6 +89,8 @@ def mark_driver_arriving(ride_id: int, driver_id: int):
         ride.status = "driver_arriving"
         db.commit()
         db.refresh(ride)
+
+        await cache_ride_state(ride.id, "driver_arriving", ride.rider_id, driver_id)
         return ride
     finally:
         db.close()
@@ -94,13 +105,15 @@ def get_ride_otp(ride_id: int, rider_id: int):
         if ride.rider_id != rider_id:
             raise HTTPException(status_code=403, detail="This is not your ride")
         if ride.status not in ["accepted", "driver_arriving"]:
-            raise HTTPException(status_code=400, detail="OTP only available once ride is accepted")
-
+            raise HTTPException(
+                status_code=400,
+                detail="OTP only available once ride is accepted"
+            )
         return ride.otp
     finally:
         db.close()
 
-def start_ride(ride_id: int, driver_id: int, otp: str):
+async def start_ride(ride_id: int, driver_id: int, otp: str):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).first()
@@ -121,11 +134,13 @@ def start_ride(ride_id: int, driver_id: int, otp: str):
         ride.otp = None
         db.commit()
         db.refresh(ride)
+
+        await cache_ride_state(ride.id, "in_progress", ride.rider_id, driver_id)
         return ride
     finally:
         db.close()
 
-def complete_ride(ride_id: int, driver_id: int):
+async def complete_ride(ride_id: int, driver_id: int):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).first()
@@ -143,11 +158,14 @@ def complete_ride(ride_id: int, driver_id: int):
         ride.status = "completed"
         db.commit()
         db.refresh(ride)
+
+        # Remove from cache — ride is done
+        await delete_ride_state(ride.id)
         return ride
     finally:
         db.close()
 
-def cancel_ride(ride_id: int, user_id: int, role: str):
+async def cancel_ride(ride_id: int, user_id: int, role: str):
     db = SessionLocal()
     try:
         ride = db.query(Ride).filter(Ride.id == ride_id).first()
@@ -177,6 +195,9 @@ def cancel_ride(ride_id: int, user_id: int, role: str):
         ride.otp = None
         db.commit()
         db.refresh(ride)
+
+        # Remove from cache
+        await delete_ride_state(ride.id)
         return ride
     finally:
         db.close()
